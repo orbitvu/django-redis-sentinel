@@ -46,7 +46,7 @@ class SentinelClient(DefaultClient):
 
         return master_name, sentinel_hosts, db
 
-    def get_client(self, write=True):
+    def get_client(self, write=True, tried=(), show_index=False):
         """
         Method used to obtain a raw redis client.
 
@@ -59,12 +59,12 @@ class SentinelClient(DefaultClient):
             if self._client_write is None:
                 self._client_write = self.connect(write)
 
-            return self._client_write
+            return (self._client_write, 0) if show_index else self._client_write
 
         if self._client_read is None:
             self._client_read = self.connect(write)
 
-        return self._client_read
+        return (self._client_read, 0) if show_index else self._client_read
 
     def connect(self, write=True, SentinelClass=None):
         """
@@ -101,18 +101,19 @@ class SentinelClient(DefaultClient):
         """
         Closing old connections, as master may change in time of inactivity.
         """
-        self.log.debug("close called")
-        if self._client_read:
-            for c in self._client_read.connection_pool._available_connections:
-                c.disconnect()
-            self.log.debug("client_read closed")
+        if getattr(settings, "DJANGO_REDIS_CLOSE_CONNECTION", False):
+            self.log.debug("close called")
+            if self._client_read:
+                for c in self._client_read.connection_pool._available_connections:
+                    c.disconnect()
+                self.log.debug("client_read closed")
 
-        if self._client_write:
-            for c in self._client_write.connection_pool._available_connections:
-                c.disconnect()
-            self.log.debug("client_write closed")
+            if self._client_write:
+                for c in self._client_write.connection_pool._available_connections:
+                    c.disconnect()
+                self.log.debug("client_write closed")
 
-        del(self._client_write)
-        del(self._client_read)
-        self._client_write = None
-        self._client_read = None
+            del(self._client_write)
+            del(self._client_read)
+            self._client_write = None
+            self._client_read = None
