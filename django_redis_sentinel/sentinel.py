@@ -2,15 +2,42 @@
 
 import logging
 import random
+import socket
+import functools
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
+from redis.exceptions import ConnectionError, ResponseError, TimeoutError, ReadOnlyError
+from django_redis.exceptions import ConnectionInterrupted
 from redis.sentinel import Sentinel
 
 from django_redis.client import DefaultClient
 
 DJANGO_REDIS_LOGGER = getattr(settings, "DJANGO_REDIS_LOGGER", False)
+_main_exceptions = (ReadOnlyError, TimeoutError, ResponseError, ConnectionError, socket.timeout, ConnectionInterrupted)
+
+
+def switch_node_decorator(write=True, read=True):
+    """ If (defined) exception is raised then clear local _client_write and/or _client_read variables in order to
+        get new connection from sentinel
+    """
+    def switch_node(func):
+        @functools.wraps(func)
+        def wrapper_decorator(*args, **kwargs):
+            try:
+                value = func(*args, **kwargs)
+            except _main_exceptions as e:
+                self = args[0]
+                if write:
+                    self._client_write = None
+                if read:
+                    self._client_read = None
+                value = func(*args, **kwargs)
+            return value
+        return wrapper_decorator
+    return switch_node
+
 
 
 class SentinelClient(DefaultClient):
@@ -28,6 +55,74 @@ class SentinelClient(DefaultClient):
         self._client_read = None
         self._connection_string = server
         self.log = logging.getLogger((DJANGO_REDIS_LOGGER or __name__))
+
+    @switch_node_decorator(write=True, read=False)
+    def set(self, *args, **kwargs):
+        return super(SentinelClient, self).set(*args, **kwargs)
+
+    @switch_node_decorator(write=False, read=True)
+    def get(self, *args, **kwargs):
+        return super(SentinelClient, self).get(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def incr_version(self, *args, **kwargs):
+        return super(SentinelClient, self).incr_version(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def persist(self, *args, **kwargs):
+        return super(SentinelClient, self).persist(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def expire(self, *args, **kwargs):
+        return super(SentinelClient, self).expire(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def lock(self, *args, **kwargs):
+        return super(SentinelClient, self).lock(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def delete(self, *args, **kwargs):
+        return super(SentinelClient, self).delete_pattern(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def delete_pattern(self, *args, **kwargs):
+        return super(SentinelClient, self).delete(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def delete_many(self, *args, **kwargs):
+        return super(SentinelClient, self).delete_many(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def clear(self, *args, **kwargs):
+        return super(SentinelClient, self).clear(*args, **kwargs)
+
+    @switch_node_decorator(write=False, read=True)
+    def get_many(self, *args, **kwargs):
+        return super(SentinelClient, self).get_many(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def set_many(self, *args, **kwargs):
+        return super(SentinelClient, self).set_many(*args, **kwargs)
+
+    @switch_node_decorator(write=True, read=False)
+    def _incr(self, *args, **kwargs):
+        return super(SentinelClient, self)._incr(*args, **kwargs)
+
+    @switch_node_decorator(write=False, read=True)
+    def ttl(self, *args, **kwargs):
+        return super(SentinelClient, self).ttl(*args, **kwargs)
+
+    @switch_node_decorator(write=False, read=True)
+    def has_key(self, *args, **kwargs):
+        return super(SentinelClient, self).has_key(*args, **kwargs)
+
+    @switch_node_decorator(write=False, read=True)
+    def iter_keys(self, *args, **kwargs):
+        return super(SentinelClient, self).iter_keys(*args, **kwargs)
+
+    @switch_node_decorator(write=False, read=True)
+    def keys(self, *args, **kwargs):
+        return super(SentinelClient, self).keys(*args, **kwargs)
 
     def parse_connection_string(self, constring):
         """
