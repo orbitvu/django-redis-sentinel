@@ -8,14 +8,22 @@ import functools
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
-from redis.exceptions import ConnectionError, ResponseError, TimeoutError, ReadOnlyError
+from redis.exceptions import ConnectionError, ResponseError, TimeoutError, ReadOnlyError, BusyLoadingError
 from django_redis.exceptions import ConnectionInterrupted
 from redis.sentinel import Sentinel
 
 from django_redis.client import DefaultClient
 
 DJANGO_REDIS_LOGGER = getattr(settings, "DJANGO_REDIS_LOGGER", False)
-_main_exceptions = (ReadOnlyError, TimeoutError, ResponseError, ConnectionError, socket.timeout, ConnectionInterrupted)
+_main_exceptions = (
+    ReadOnlyError,
+    TimeoutError,
+    ResponseError,
+    ConnectionError,
+    socket.timeout,
+    ConnectionInterrupted,
+    BusyLoadingError
+)
 
 
 def switch_node_decorator(write=True, read=True):
