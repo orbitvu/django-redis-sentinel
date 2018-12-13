@@ -90,11 +90,11 @@ class SentinelClient(DefaultClient):
 
     @switch_node_decorator(write=True, read=False)
     def delete(self, *args, **kwargs):
-        return super(SentinelClient, self).delete_pattern(*args, **kwargs)
+        return super(SentinelClient, self).delete(*args, **kwargs)
 
     @switch_node_decorator(write=True, read=False)
     def delete_pattern(self, *args, **kwargs):
-        return super(SentinelClient, self).delete(*args, **kwargs)
+        return super(SentinelClient, self).delete_pattern(*args, **kwargs)
 
     @switch_node_decorator(write=True, read=False)
     def delete_many(self, *args, **kwargs):
